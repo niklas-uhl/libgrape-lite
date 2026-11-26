@@ -348,6 +348,14 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
 
   void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
                            size_t& recv_size) {
+    // katric: a fragment without inner vertices (more ranks than vertices)
+    // has no edges, so it sends nothing and has no ghosts to receive for; the
+    // estimate below would divide by 0 and OEDestsSize() asserts
+    if (frag.GetInnerVerticesNum() == 0) {
+      send_size = 0;
+      recv_size = 0;
+      return;
+    }
     size_t avg_degree =
         frag.GetOutgoingEdgeNum() / frag.GetInnerVerticesNum() + 1;
     send_size = (avg_degree + 1) * sizeof(vid_t) * frag.OEDestsSize();
@@ -688,6 +696,14 @@ class LCCOpt<FRAG_T, COUNT_T,
 
   void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
                            size_t& recv_size) {
+    // katric: a fragment without inner vertices (more ranks than vertices)
+    // has no edges, so it sends nothing and has no ghosts to receive for; the
+    // estimate below would divide by 0 and OEDestsSize() asserts
+    if (frag.GetInnerVerticesNum() == 0) {
+      send_size = 0;
+      recv_size = 0;
+      return;
+    }
     size_t avg_degree =
         frag.GetOutgoingEdgeNum() / frag.GetInnerVerticesNum() + 1;
     send_size = (avg_degree + 1) * sizeof(vid_t) * frag.OEDestsSize();
