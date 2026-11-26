@@ -204,12 +204,12 @@ class BatchShuffleMessageManager : public MessageManagerBase {
    */
   void Finalize() override {
     if (!send_reqs_.empty()) {
-      MPI_Waitall(send_reqs_.size(), &send_reqs_[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(send_reqs_.size(), send_reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
       send_reqs_.clear();
     }
 
     if (!recv_reqs_.empty()) {
-      MPI_Waitall(recv_reqs_.size(), &recv_reqs_[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(recv_reqs_.size(), recv_reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
       recv_reqs_.clear();
     }
 
@@ -240,12 +240,12 @@ class BatchShuffleMessageManager : public MessageManagerBase {
       int thread_num = std::thread::hardware_concurrency()) {
     to_terminate_ = false;
     if (!send_reqs_.empty()) {
-      MPI_Waitall(send_reqs_.size(), &send_reqs_[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(send_reqs_.size(), send_reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
       send_reqs_.clear();
     }
 
     if (!recv_reqs_.empty()) {
-      MPI_Waitall(recv_reqs_.size(), &recv_reqs_[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(recv_reqs_.size(), recv_reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
       recv_reqs_.clear();
       recv_from_.clear();
     }
@@ -262,7 +262,7 @@ class BatchShuffleMessageManager : public MessageManagerBase {
    * is, messages from all other fragments are received.
    */
   void UpdateOuterVertices() {
-    MPI_Waitall(recv_reqs_.size(), &recv_reqs_[0], MPI_STATUSES_IGNORE);
+    MPI_Waitall(recv_reqs_.size(), recv_reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
   }
 
   /**
@@ -275,7 +275,7 @@ class BatchShuffleMessageManager : public MessageManagerBase {
     int index;
     fid_t ret;
     while (true) {
-      MPI_Waitany(recv_reqs_.size(), &recv_reqs_[0], &index, MPI_STATUS_IGNORE);
+      MPI_Waitany(recv_reqs_.size(), recv_reqs_.data(), &index, MPI_STATUS_IGNORE);  // katric: .data(), can be empty
       ret = recv_from_[index];
       --remaining_reqs_[ret];
       if (remaining_reqs_[ret] == 0) {
@@ -323,7 +323,7 @@ class BatchShuffleMessageManager : public MessageManagerBase {
                 &recv_thread_reqs[src_fid]);
     }
     int index;
-    MPI_Waitany(fnum_, &recv_thread_reqs[0], &index, MPI_STATUS_IGNORE);
+    MPI_Waitany(fnum_, recv_thread_reqs.data(), &index, MPI_STATUS_IGNORE);  // katric: .data(), can be empty
     CHECK(index == static_cast<int>(fid_));
     for (fid_t src_fid = 0; src_fid < fnum_; ++src_fid) {
       if (src_fid != fid_) {

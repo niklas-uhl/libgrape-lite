@@ -190,7 +190,7 @@ inline OutArchive& operator>>(OutArchive& out_archive,
   size_t size;
   out_archive >> size;
   vec.resize(size);
-  memcpy(&vec[0], out_archive.GetBytes(sizeof(T) * size), sizeof(T) * size);
+  memcpy(vec.data(), out_archive.GetBytes(sizeof(T) * size), sizeof(T) * size);  // katric: .data(), can be empty
   return out_archive;
 }
 
@@ -222,7 +222,7 @@ inline OutArchive& operator>>(OutArchive& out_archive, Array<T, ALLOC_T>& vec) {
   size_t size;
   out_archive >> size;
   vec.resize(size);
-  memcpy(&vec[0], out_archive.GetBytes(sizeof(T) * size), sizeof(T) * size);
+  memcpy(vec.data(), out_archive.GetBytes(sizeof(T) * size), sizeof(T) * size);  // katric: .data(), can be empty
   return out_archive;
 }
 

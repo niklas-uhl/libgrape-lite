@@ -102,6 +102,8 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
     messages.ForceContinue();
   }
 
+  // katric: kCountOnly skips the per-vertex counters (global count only)
+  template <bool kCountOnly = false>
   count_t intersect_with_bs(const lcc_opt_impl::ref_vector<vertex_t>& small,
                             const lcc_opt_impl::ref_vector<vertex_t>& large,
                             tricnt_list_t& result) {
@@ -116,12 +118,13 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
       if (*from == v) {
         ++ret;
         ++from;
-        atomic_add(result[v], static_cast<count_t>(1));
+        if (!kCountOnly) atomic_add(result[v], static_cast<count_t>(1));
       }
     }
     return ret;
   }
 
+  template <bool kCountOnly = false>
   count_t intersect(const lcc_opt_impl::ref_vector<vertex_t>& lhs,
                     const lcc_opt_impl::ref_vector<vertex_t>& rhs,
                     tricnt_list_t& result) {
@@ -137,7 +140,7 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
       vid_t i = 0, j = 0;
       while (i < v_size && j < u_size) {
         if (lhs[i] == rhs[j]) {
-          atomic_add(result[lhs[i]], static_cast<count_t>(1));
+          if (!kCountOnly) atomic_add(result[lhs[i]], static_cast<count_t>(1));
           ++count;
           ++i;
           ++j;
@@ -150,9 +153,9 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
       return count;
     } else {
       if (v_size > u_size) {
-        return intersect_with_bs(rhs, lhs, result);
+        return intersect_with_bs<kCountOnly>(rhs, lhs, result);
       } else {
-        return intersect_with_bs(lhs, rhs, result);
+        return intersect_with_bs<kCountOnly>(lhs, rhs, result);
       }
     }
   }
@@ -233,6 +236,46 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
           thread_num());
       for (auto& vs : vertexsets) {
         vs.Init(frag.Vertices());
+      }
+      if (ctx.global_count) {
+        // katric: the same intersections, counted per thread instead of
+        // added to all three vertices; each triangle is found once, at its
+        // lowest-ordered vertex. No sync superstep: nothing is sent, so the
+        // query ends after this round.
+        std::vector<count_t> thread_counts(thread_num(), 0);
+        ForEach(inner_vertices, [this, &ctx, &vertexsets, &thread_counts](
+                                    int tid, vertex_t v) {
+          auto& v0_nbr_vec = ctx.complete_neighbor[v];
+          if (v0_nbr_vec.size() <= 1) {
+            return;
+          } else if (v0_nbr_vec.size() <= ctx.degree_x) {
+            for (auto u : v0_nbr_vec) {
+              auto& v1_nbr_vec = ctx.complete_neighbor[u];
+              thread_counts[tid] +=
+                  intersect<true>(v0_nbr_vec, v1_nbr_vec, ctx.tricnt);
+            }
+          } else {
+            auto& v0_nbr_set = vertexsets[tid];
+            for (auto u : v0_nbr_vec) {
+              v0_nbr_set.Insert(u);
+            }
+            for (auto u : v0_nbr_vec) {
+              for (auto w : ctx.complete_neighbor[u]) {
+                if (v0_nbr_set.Exist(w)) {
+                  ++thread_counts[tid];
+                }
+              }
+            }
+            for (auto u : v0_nbr_vec) {
+              v0_nbr_set.Erase(u);
+            }
+          }
+        });
+        for (auto count : thread_counts) {
+          ctx.triangles += count;
+        }
+        ctx.stage = 3;
+        return;
       }
       ForEach(inner_vertices, [this, &ctx, &vertexsets](int tid, vertex_t v) {
         auto& v0_nbr_vec = ctx.complete_neighbor[v];
@@ -367,6 +410,8 @@ class LCCOpt<FRAG_T, COUNT_T,
     messages.ForceContinue();
   }
 
+  // katric: kCountOnly skips the per-vertex counters (global count only)
+  template <bool kCountOnly = false>
   count_t intersect(lcc_opt_impl::ref_vector<vertex_t>& lhs,
                     lcc_opt_impl::ref_vector<vertex_t>& rhs,
                     tricnt_list_t& result) {
@@ -419,13 +464,13 @@ class LCCOpt<FRAG_T, COUNT_T,
         __m128i cmp_mask = _mm_cmpeq_epi32(v_a, v_b);
         int mask = _mm_movemask_ps((__m128) cmp_mask);
         if (mask != 0) {
-          atomic_add(result[list_a[i]], static_cast<count_t>(1));
+          if (!kCountOnly) atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
         }
       }
       while (i < size_a && j < size_b) {
         if (set_a[i] == set_b[j]) {
-          atomic_add(result[list_a[i]], static_cast<count_t>(1));
+          if (!kCountOnly) atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
           ++i;
           ++j;
@@ -469,7 +514,7 @@ class LCCOpt<FRAG_T, COUNT_T,
                                        set_a[i + p]);
           if (!_mm_test_all_zeros(_mm_cmpeq_epi32(wc_a, v_b0), all_one_si128) ||
               !_mm_test_all_zeros(_mm_cmpeq_epi32(wc_a, v_b1), all_one_si128)) {
-            atomic_add(result[list_a[i + p]], static_cast<count_t>(1));
+            if (!kCountOnly) atomic_add(result[list_a[i + p]], static_cast<count_t>(1));
             ++size_c;
           }
         }
@@ -486,7 +531,7 @@ class LCCOpt<FRAG_T, COUNT_T,
 
       while (i < size_a && j < size_b) {
         if (set_a[i] == set_b[j]) {
-          atomic_add(result[list_a[i]], static_cast<count_t>(1));
+          if (!kCountOnly) atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
           i++;
           j++;
@@ -573,6 +618,27 @@ class LCCOpt<FRAG_T, COUNT_T,
 #endif
           });
 
+      if (ctx.global_count) {
+        // katric: as in the generic version, counted per thread, no sync
+        std::vector<count_t> thread_counts(thread_num(), 0);
+        ForEach(inner_vertices,
+                [this, &ctx, &thread_counts](int tid, vertex_t v) {
+                  auto& v0_nbr_vec = ctx.complete_neighbor[v];
+                  if (v0_nbr_vec.size() <= 1) {
+                    return;
+                  }
+                  for (auto u : v0_nbr_vec) {
+                    auto& v1_nbr_vec = ctx.complete_neighbor[u];
+                    thread_counts[tid] +=
+                        intersect<true>(v0_nbr_vec, v1_nbr_vec, ctx.tricnt);
+                  }
+                });
+        for (auto count : thread_counts) {
+          ctx.triangles += count;
+        }
+        ctx.stage = 3;
+        return;
+      }
       ForEach(inner_vertices, [this, &ctx](int tid, vertex_t v) {
         auto& v0_nbr_vec = ctx.complete_neighbor[v];
         if (v0_nbr_vec.size() <= 1) {

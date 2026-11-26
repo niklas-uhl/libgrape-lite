@@ -314,7 +314,7 @@ class ImmutableEdgecutFragment
       DistinctSort(outer_vertices);
 
       ovgid_.resize(outer_vertices.size());
-      memcpy(&ovgid_[0], &outer_vertices[0],
+      memcpy(ovgid_.data(), outer_vertices.data(),  // katric: .data(), the vectors can be empty
              outer_vertices.size() * sizeof(VID_T));
     }
 
@@ -470,7 +470,7 @@ class ImmutableEdgecutFragment
       DistinctSort(outer_vertices);
 
       ovgid_.resize(outer_vertices.size());
-      memcpy(&ovgid_[0], &outer_vertices[0],
+      memcpy(ovgid_.data(), outer_vertices.data(),  // katric: .data(), the vectors can be empty
              outer_vertices.size() * sizeof(VID_T));
     }
 

@@ -427,7 +427,7 @@ class ParallelMessageManager : public MessageManagerBase {
                 NULL, 0, comm_spec_.FragToWorker(i), msg_round, comm_, req);
             reqs.push_back(req);
           }
-          MPI_Waitall(reqs.size(), &reqs[0], MPI_STATUSES_IGNORE);
+          MPI_Waitall(reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
           to_others_.clear();
         },
         round + 1);

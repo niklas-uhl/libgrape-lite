@@ -66,7 +66,7 @@ class InArchive {
   inline void AddBytes(const void* head, size_t size) {
     size_t _size = buffer_.size();
     buffer_.resize(_size + size);
-    memcpy(&buffer_[_size], head, size);
+    memcpy(buffer_.data() + _size, head, size);  // katric: .data(), size can be 0
   }
 
   inline void Resize(size_t size) { buffer_.resize(size); }

@@ -40,6 +40,8 @@ limitations under the License.
 
 #include "grape/config.h"
 
+#include <unistd.h>
+
 namespace grape {
 
 inline double GetCurrentTime() {
@@ -216,6 +218,11 @@ inline std::map<std::string, size_t> parse_meminfo() {
 
 inline size_t get_available_memory() {
   auto meminfo = parse_meminfo();
+  // katric: no /proc/meminfo (macOS): physical memory instead; Linux unchanged
+  if (meminfo.empty()) {
+    return static_cast<size_t>(sysconf(_SC_PHYS_PAGES)) *
+           static_cast<size_t>(sysconf(_SC_PAGESIZE));
+  }
 #ifdef USE_HUGEPAGES
   return meminfo.at("HugePages_Free") * meminfo.at("Hugepagesize");
 #else

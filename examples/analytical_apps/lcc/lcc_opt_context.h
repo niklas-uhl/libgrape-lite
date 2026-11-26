@@ -147,7 +147,13 @@ class LCCOptContext : public VertexDataContext<FRAG_T, double> {
     tricnt.Init(fragment.Vertices());
   }
 
-  void Init(ParallelMessageManagerOpt& messages) { tricnt.SetValue(0); }
+  // katric: global_count = only the global triangle count (in `triangles`),
+  // no per-vertex counts and no LCC values
+  void Init(ParallelMessageManagerOpt& messages, bool global_count = false) {
+    tricnt.SetValue(0);
+    this->global_count = global_count;
+    triangles = 0;
+  }
 
   void Output(std::ostream& os) override {
     auto& frag = this->fragment();
@@ -175,6 +181,9 @@ class LCCOptContext : public VertexDataContext<FRAG_T, double> {
   int stage = 0;
 
   size_t degree_x = 0;
+
+  bool global_count = false;  // katric
+  count_t triangles = 0;      // katric: with global_count, this rank's count
 };
 
 }  // namespace grape

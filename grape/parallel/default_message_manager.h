@@ -73,7 +73,7 @@ class DefaultMessageManager : public MessageManagerBase {
   void StartARound() override {
     sent_size_ = 0;
     if (!reqs_.empty()) {
-      MPI_Waitall(reqs_.size(), &reqs_[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(reqs_.size(), reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
       reqs_.clear();
     }
     for (auto& arc : to_send_) {
@@ -132,7 +132,7 @@ class DefaultMessageManager : public MessageManagerBase {
    */
   void Finalize() override {
     if (!reqs_.empty()) {
-      MPI_Waitall(reqs_.size(), &reqs_[0], MPI_STATUSES_IGNORE);
+      MPI_Waitall(reqs_.size(), reqs_.data(), MPI_STATUSES_IGNORE);  // katric: .data(), can be empty
       reqs_.clear();
     }
 
